@@ -1,8 +1,8 @@
-## [Build and deploy mini charm](https://juju.is/tutorials/build-and-deploy-mini-charm#1-introduction)
+# [Build and deploy mini charm](https://juju.is/tutorials/build-and-deploy-mini-charm#1-introduction)
 
-### Install prerequisites
+## Install prerequisites
 
-#### Install LXD
+### Install LXD
 
 ```bash
 sudo snap install lxd
@@ -41,7 +41,7 @@ Charmchaft is a tool for build and package Charms.
 sudo snap install charmcraft --class
 ```
 
-### Init charm
+## Init charm
 
 ```bash
 mkdir charm-mini
@@ -69,7 +69,7 @@ tree
 #         2 directories, 13 files
 ```
 
-### Create your first charm
+## Create your first charm
 
 Let's see the file `src/charm.py`
 
@@ -328,7 +328,7 @@ if __name__ == "__main__":
 ```
 
 
-### Build a charm
+## Build a charm
 
 
 Back to `CharmMiniCharm`, lets build a Charm now
@@ -361,7 +361,9 @@ It's a zip file actually, you can try to unzip it && see what's inside.
 unzip charm-mini_ubuntu-20.04-amd64.charm -p tmp_charm && tree tmp_charm
 ```
 
-### Deploy
+## Deploy
+
+Deploy charm with:
 
 ```bash
 juju deploy ./charm-mini_ubuntu-20.04-amd64.charm
@@ -372,4 +374,28 @@ Monitor status && log
 ```bash
 juju debug-log
 juju status --watch 5s
+
+ Model    Controller           Cloud/Region         Version  SLA          Timestamp
+ default  localhost-localhost  localhost/localhost  2.9.29   unsupported  16:22:16+08:00
+ 
+ App         Version  Status  Scale  Charm       Channel  Rev  Exposed  Message
+ charm-mini           active      1  charm-mini             0  no       Step: 3/3
+ 
+ Unit           Workload  Agent  Machine  Public address  Ports  Message
+ charm-mini/0*  active    idle   0        10.127.138.27          Step: 3/3
+ 
+ Machine  State    DNS            Inst id        Series  AZ  Message
+ 0        started  10.127.138.27  juju-d3c39e-0  focal       Running
 ```
+
+
+## Clean up
+
+```bash
+charmcraft clean
+juju remove-application charm-mini
+```
+
+## Reference
+
+[Build and deploy mini charm](https://juju.is/tutorials/build-and-deploy-mini-charm#1-introduction)
