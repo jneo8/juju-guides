@@ -38,7 +38,7 @@ lxc list && juju controllers && juju clouds
 Charmchaft is a tool for build and package Charms.
 
 ```
-sudo snap install charmcraft --class
+sudo snap install charmcraft --classic
 ```
 
 ## Init charm
