@@ -1,0 +1,5 @@
+*.iso
+*.img
+meta-data
+user-data
+.env
