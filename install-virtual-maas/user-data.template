@@ -1,0 +1,25 @@
+#cloud-config
+hostname: maas-controller
+manage_etc_hosts: true
+chpasswd:
+  list: |
+    ubuntu:ubuntu
+  expire: False 
+users:
+  - name: ubuntu
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    groups: users, admin
+    home: /home/ubuntu
+    shell: /bin/bash
+    lock_passwd: false
+    ssh-authorized-keys:
+      - <PUBLIC_KEY>
+
+ssh_pwauth: true
+password: password
+write-files:
+  - path: /home/ubuntu/hello
+    content: |
+      Hello?
+runcmd:
+  - echo "Hello!" >> /home/ubuntu/hello
