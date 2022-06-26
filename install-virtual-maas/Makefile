@@ -2,17 +2,10 @@ SHELL := /bin/bash
 
 ##@ maas
 
-start-maas-controller:  ## Start maas controller
-	sudo virsh start maas-controller
-	sudo virsh list
-
 get-maas-node-uuid:  ## Get maas nodes uuid
-	sudo virsh list --all | grep "maas-node" | awk '{print $$2}' | xargs -L 1 sudo virsh dominfo
+	sudo virsh list --all | grep maas-node | awk '{print $$2}' | xargs -L 1 -i  sh -c "echo {}; sudo virsh dominfo {}; sudo virsh domiflist {}"
 
-get-maas-node-mac-addresses:  ## Get maas mac addresses
-	sudo virsh list --all | grep "maas-node" | awk '{print $$2}' | xargs -L 1 sudo virsh domiflist
-
-.PHONY: get-maas-node-mac-addresses get-maas-node-uuid start-maas-controller
+.PHONY: get-maas-node-uuid
 
 
 ##@ Help

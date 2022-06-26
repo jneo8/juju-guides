@@ -12,6 +12,7 @@
 ### Install KVM on host machine
 
 ```
+cp ./.env-template .env
 ./install.sh
 ```
 
@@ -49,11 +50,21 @@ ssh ubuntu@192.168.122.2
 
 ### Install && configuration maas
 
-https://maas.io/docs
+https://maas.io/docs/how-to-install-maas
+
+```bash
+sudo snap install --channel=3.2 maas
+sudo snap install maas-test-db
+sudo maas init region+rack --database-uri maas-test-db:///
+sudo maas status
+
+sudo maas createadmin
+```
 
 #### Make maas controller can connect to host machine's hypervisor
 
 * Create a SSH key on the maas-controller
+    * https://maas.io/docs/how-to-manage-vm-hosts#heading--set-up-ssah-lv
 * Adding the public key to the host machine's `~/.ssh/authorized_keys`
 
 ```bash
@@ -74,12 +85,21 @@ https://maas.io/docs/how-to-manage-vm-hosts#heading--set-up-ssah-lv
 
 ```bash
 ./create-nodes.sh
+
+virsh list
+
+sudo ls /var/lib/libvirt/images
 ```
 
 ### Configure and commission the virtual machines
 
-- See "Adding KVMs to MAAS Manually" on https://ubuntu.com/blog/quick-add-kvms-for-maas
+- Goto: http://192.168.122.2:5240/MAAS/r/
 
+- Enable DHCP: https://maas.io/docs/how-to-manage-ip-addresses#heading--enabling-dhcp
+
+#### Adding KVMs to MAAS Manually
+
+https://ubuntu.com/blog/quick-add-kvms-for-maas
 
 - Get address
 
@@ -100,12 +120,15 @@ sudo maas apikey --username=admin > api-key-file
 * On host
 
 ```bash
-juju add-cloud --local
-juju add-credential virtual-maas-creds
-juju bootstrap virtual-maas
+sudo maas apikey --username=admin
 ```
 
-
+```bash
+juju add-cloud --local
+juju add-credential virtual-maas
+juju bootstrap virtual-maas
+juju controllers --debug
+```
 
 ## References
 

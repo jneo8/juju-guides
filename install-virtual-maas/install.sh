@@ -18,7 +18,7 @@ dotenv
 # https://help.ubuntu.com/community/KVM/Installation
 kvm-ok
 
-sudo apt-get install qemu-kvm libvirt-daemon-system libvirt-clients bridge-utils
+sudo apt-get install qemu-kvm libvirt-daemon-system libvirt-clients bridge-utils -y
 
 sudo adduser `id -un` libvirt
 
@@ -59,6 +59,11 @@ then
     cloud-init devel schema --config-file user-data
 fi
 
+if [ ! -f meta-data ]
+then 
+    cat ./meta-data.template  > meta-data
+fi
+
 if [ ! -f config.iso ]
 then 
     genisoimage -o config.iso -V cidata -r -J user-data meta-data
@@ -72,7 +77,6 @@ sudo virt-install \
     --name maas-controller \
     --memory 4096 \
     --vcpus 2 \
-    --os-type linux \
     --os-variant ubuntu20.04 \
     --import \
     --disk path=./disk.img,bus=virtio,format=qcow2,cache=none,size=100 \
