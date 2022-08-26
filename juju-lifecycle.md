@@ -11,6 +11,7 @@ $$lifecycle=hooks+states$$
 - An event is a data structure that encapsulates part of the execution context of a charm
 
 https://github.com/juju/charm/blob/master/hooks/hooks.go
+[import at](https://github.com/juju/juju/blob/915c77761ef1b1f2f0abbc2c386fde54cf848f89/go.mod#L51)
 
 ### How hook run?
 
@@ -194,6 +195,7 @@ end
 - [A charm’s life](https://discourse.charmhub.io/t/a-charms-life/5938#heading--legend)
 - [Juju state machine documentation and visualization](https://discourse.charmhub.io/t/juju-state-machine-documentation-and-visualization/3511)
 - [Juju State diagram](https://miro.com/app/board/o9J_l8NaUVU=/?share_link_id=938178796053)
+- [Talking to a workload: control flow from A to Z](https://discourse.charmhub.io/t/talking-to-a-workload-control-flow-from-a-to-z/6161)
 
 ### Source code
 
