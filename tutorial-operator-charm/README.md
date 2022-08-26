@@ -20,7 +20,6 @@ juju                       2.9.33                      20276  2.9/stable       c
 lxd                        5.4-1ff8d34                 23367  latest/stable    canonical**   -
 ```
 
-
 ## What is charmcraft?
 
 Charmcraft enables charm creators to build, publish, and manage charmed operators for Kubernetes, metal and virtual machnes.
@@ -52,7 +51,7 @@ charm-nginx
         └── test_charm.py
 ```
 
-### Charm Structure
+### Charm Project Structure
 
 First is the `charmcraft.yaml`.
 
