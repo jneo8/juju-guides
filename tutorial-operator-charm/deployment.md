@@ -1,5 +1,14 @@
 # Deployment
 
+## agenda
+
+* charm class
+* pubble-ready
+* redis-sentinel
+* peers-relation
+* leader-elected
+* redis provider
+
 ## Create charm project and clean
 
 ```sh
@@ -458,8 +467,168 @@ class RedisK8sCharm(CharmBase):
         return self.model.get_relation(PEER)
 ```
 
+Now we finish the workflow for pebble. But we still miss one thing here: Redis Sentinel.
 
-TODO: peers handler
+### Redis - sentinel
+
+![](./imgs/redis-sentinel.png)
+
+* TODO: description of sentinel.py
+* TODO: sentinel.py source code
+
+### Charm - redis-peers interface
+
+Peer relation is the recommended way to implement the relation for those distributed system like MongoDB, PostgreSQL, and ElasticSearch where clusters must exchange information amongst one another to perform proper clustering.
+
+> More details: [Peer relation](https://juju.is/docs/sdk/relations#heading--peer-relations)
+
+### Charm - leader elected
+
+Because the we are going to deploy redis as redis sentinel. It will need to choose which node is the master.
+This will happen in the `_leader_elected` hook.
+
+> [leader-elected event](https://juju.is/docs/sdk/leader-elected-event)
+
+```mermaid
+stateDiagram-v2
+
+state "self password exists in databag?" as if_self_password
+state "sentinel password exists in databag?" as if_sentinel_password
+state "self master?" as if_self_master
+state "Next hook event or cloud event" as next_event
+
+[*] --> _leader_elected
+
+_leader_elected --> if_self_password
+
+%% password
+if_self_password --> generate_self_password: not exists
+generate_self_password --> if_sentinel_password
+if_self_password --> if_sentinel_password: exists
+if_sentinel_password --> generate_sentinel_password: not exists
+generate_sentinel_password --> if_self_master
+if_sentinel_password --> if_self_master: exists
+if_self_master --> update_leader_hostname: yes
+update_leader_hostname --> reset_sentinel
+
+%% master
+if_self_master --> update_application_master: no
+update_application_master --> update_quorum
+update_quorum --> is_failover_finish
+
+is_failover_finish --> event_defer: no
+event_defer --> next_event
+next_event --> _leader_elected
+is_failover_finish --> reset_sentinel: yes
+reset_sentinel --> [*]
+```
+
+> [juju defer event](https://juju.is/docs/sdk/deferring-events-details-and-dilemmas)
+
+`src/sentinel.py`
+
+`src/charm.py`
+
+```python
+
+...
+
+class RedisK8sCharm(CharmBase):
+    ...
+
+    def __init__(self, *args):
+
+        self.sentinel = Sentinel(self)
+        ...
+        self.framework.observe(self.on.leader_elected, self._leader_elected)
+
+    def _leader_elected(self, event) -> None:
+        """Handle the leader_elected event.
+
+        If no passwords exist, new ones will be created for accessing Redis/Sentinel.
+        This passwords will be stored on the peer relation databag.
+
+        Additionally, there is a check for departing juju leader on scale-down operations.
+        """
+        if not self._get_password():
+            logger.info("Creating password for application")
+            self._peers.data[self.app][PEER_PASSWORD_KEY] = self._generate_password()
+
+        if not self.get_sentinel_password():
+            logger.info("Creating sentinel password")
+            self._peers.data[self.app][SENTINEL_PASSWORD_KEY] = self._generate_password()
+        # NOTE: if current_master is not set yet, the application is being deployed for the
+        # first time. Otherwise, we check for failover in case previous juju leader was redis
+        # master as well.
+        if self.current_master is None:
+            logger.info(
+                "Initial replication, setting leader-host to {}".format(self.unit_pod_hostname)
+            )
+            self._peers.data[self.app][LEADER_HOST_KEY] = self.unit_pod_hostname
+        else:
+            # TODO extract to method shared with relation_departed
+            self._update_application_master()
+            self._update_quorum()
+            try:
+                self._is_failover_finished()
+            except (RedisFailoverCheckError, RedisFailoverInProgressError):
+                logger.info("Failover didn't finish, deferring")
+                event.defer()
+                return
+
+            logger.info("Resetting sentinel")
+            self._reset_sentinel()
+
+    def get_sentinel_password(self) -> Optional[str]:
+        """Get the current password for sentinel.
+
+        Returns:
+            String with the password
+        """
+        data = self._peers.data[self.app]
+        return data.get(SENTINEL_PASSWORD_KEY)
+
+    def _update_application_master(self) -> None:
+        """Use Sentinel to update the current master hostname."""
+        info = self.sentinel.get_master_info()
+        logger.debug(f"Master info: {info}")
+        if info is None:
+            logger.warning("Could not update current master")
+            return
+
+        self._peers.data[self.app][LEADER_HOST_KEY] = info["ip"]
+
+    def _update_quorum(self) -> None:
+        """Connect to all Sentinels deployed to update the quorum."""
+        command = f"SENTINEL SET {self._name} quorum {self.sentinel.expected_quorum}"
+        self._broadcast_sentinel_command(command)
+
+    def _reset_sentinel(self):
+        """Reset sentinel to process changes and remove unreachable servers/sentinels."""
+        command = f"SENTINEL RESET {self._name}"
+        self._broadcast_sentinel_command(command)
+
+    def _broadcast_sentinel_command(self, command: str) -> None:
+        """Broadcast a command to all sentinel instances.
+
+        Args:
+            command: string with the command to broadcast to all sentinels
+        """
+        hostnames = [self._k8s_hostname(unit.name) for unit in self._peers.units]
+        # Add the own unit
+        hostnames.append(self.unit_pod_hostname)
+
+        for hostname in hostnames:
+            with self.sentinel.sentinel_client(hostname=hostname) as sentinel:
+                try:
+                    logger.debug("Sending {} to sentinel at {}".format(command, hostname))
+                    sentinel.execute_command(command)
+                except (ConnectionError, TimeoutError) as e:
+                    logger.error("Error connecting to instance: {} - {}".format(hostname, e))
+
+```
+
+
 
 
 ### Charm - Interface
