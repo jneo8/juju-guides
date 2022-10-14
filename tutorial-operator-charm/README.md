@@ -12,3 +12,4 @@ This tutorial will use https://github.com/canonical/redis-k8s-operator as exampl
 - Sense
     - [What is operator](./sense-operator.md)
     - [What is charmcraft](./charmcraft.md)
+    - [architecture](./architecture.md)
