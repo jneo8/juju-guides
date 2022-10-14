@@ -65,7 +65,7 @@ relation-redis-interface --> container-redis-1
 relation-redis-interface --> container-redis-2
 relation-redis-interface --> container-redis-3
 
-style model-namespace fill:#f9f,stroke:#333,stroke-width:4px
+style model-namespace fill:#698FB8,stroke:#333,stroke-width:4px
 
 subgraph model-namespace
 pod-redis-1
@@ -95,3 +95,7 @@ container-charm-1 <--peer-relation--> container-charm-2
 container-charm-1 <--peer-relation--> container-charm-3
 container-charm-2 <--peer-relation--> container-charm-3
 ```
+
+## References
+
+* https://redis.io/docs/manual/sentinel/

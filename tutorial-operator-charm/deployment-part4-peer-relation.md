@@ -1,18 +1,4 @@
-# Deployment
-
-## agenda
-
-* charm class
-* pubble-ready
-* redis-sentinel
-* peers-relation
-* leader-elected
-* redis provider
-
-
----
-
-### Charm - redis-peers interface
+# Deployment - redis-peers interface
 
 Peer relation is the recommended way to implement the relation for those distributed system like MongoDB, PostgreSQL, and ElasticSearch where clusters must exchange information amongst one another to perform proper clustering.
 
@@ -21,7 +7,7 @@ Peer relation is the recommended way to implement the relation for those distrib
 We need to handle `relation_departed` and `relation_changed` event for our peers relation.
 
 
-#### peer_relation_changed
+## peer_relation_changed
 
 ```mermaid
 stateDiagram-v2
@@ -165,7 +151,7 @@ class RedisK8sCharm(CharmBase):
             client.close()
 ```
 
-#### peer_relation_departed
+## peer_relation_departed
 
 Handle relation for leaving units.
 
@@ -230,9 +216,3 @@ reset_sentinel --> ActiveStatus
 ActiveStatus --> [*]
 
 ```
-
-
-## References
-
-* https://redis.io/docs/manual/sentinel/
-
