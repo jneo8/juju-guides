@@ -101,13 +101,4 @@ class RedisK8sCharm(CharmBase):
         """
         data = self._peers.data[self.app]
         return data.get(SENTINEL_PASSWORD_KEY)
-
-
-
-    def _reset_sentinel(self):
-        """Reset sentinel to process changes and remove unreachable servers/sentinels."""
-        command = f"SENTINEL RESET {self._name}"
-        self._broadcast_sentinel_command(command)
-
-
 ```

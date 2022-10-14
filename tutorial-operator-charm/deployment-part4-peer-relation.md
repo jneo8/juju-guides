@@ -14,34 +14,25 @@ stateDiagram-v2
 
 [*] --> peer_relatoin_changed
 
-peer_relatoin_changed --> is_current_master
-is_current_master --> is_leader: true
-is_leader --> update_application_master: true
+peer_relatoin_changed --> is_current_master_and_leader
+is_current_master_and_leader --> update_application_master: true
 
-state update_application_master {
-    [*] --> get_master_info_from_sentinel
-    get_master_info_from_sentinel --> store_master_ip_in_peer_databag
-    store_master_ip_in_peer_databag --> [*]
-}
+note left of update_application_master : This will get master information from sentinel and store master ip in peer relation databag
 
-state join_state_1 <<join>>
+is_current_master_and_leader --> is_leader_and_event_unit: false
+update_application_master --> is_leader_and_event_unit
 
-is_leader --> join_state_1: false
-update_application_master --> join_state_1
-is_current_master --> join_state_1: false
-join_state_1 --> is_leader_and_event_unit
 is_leader_and_event_unit --> [*]: false
 is_leader_and_event_unit --> is_sentinel_in_majority: true
 is_sentinel_in_majority --> WaitingStatus: false
 WaitingStatus --> event_defer
 event_defer --> [*]
 is_sentinel_in_majority --> update_quorum: true
-
-state update_quorum {
-    [*] --> _broadcast_sentinel_command
-    _broadcast_sentinel_command --> sentinel_execute_command 
-    sentinel_execute_command --> [*]
-}
+note left of update_quorum
+    This will broadcast command
+    "SENTINEL SET {self._name} quorum {self.sentinel.expected_quorum}"
+    and exec on all sentinel instances.
+end note
 
 update_quorum --> ActiveStatus
 ActiveStatus --> [*]
@@ -57,7 +48,7 @@ class RedisK8sCharm(CharmBase):
         ...
 
         self.framework.observe(self.on[PEER].relation_changed, self._peer_relation_changed)
-        self.framework.observe(self.on[PEER].relation_departed, self._peer_relation_departed)
+        ...
 
     def _peer_relation_changed(self, event):
         """Handle relation for joining units."""
@@ -149,54 +140,32 @@ class RedisK8sCharm(CharmBase):
             yield client
         finally:
             client.close()
+
+    def _k8s_hostname(self, name: str) -> str:
+        """Create a DNS name for a Redis unit name.
+
+        Args:
+            name: the Redis unit name, e.g. "redis-k8s-0".
+
+        Returns:
+            A string representing the hostname of the Redis unit.
+        """
+        unit_id = name.split("/")[1]
+        return f"{self._name}-{unit_id}.{self._name}-endpoints.{self._namespace}.svc.cluster.local"
+
+    @property
+    def current_master(self) -> Optional[str]:
+        """Get the current master."""
+        return self._peers.data[self.app].get(LEADER_HOST_KEY)
 ```
 
 ## peer_relation_departed
 
 Handle relation for leaving units.
 
+
 ```mermaid
 stateDiagram-v2
-
-state update_application_master {
-    [*] --> get_master_info_from_sentinel
-    get_master_info_from_sentinel --> store_master_ip_in_peer_databag
-    store_master_ip_in_peer_databag --> [*]
-}
-
-state update_quorum {
-    state "broadcast sentinel command" as update_quorum_broadcast_sentinel_command
-    state "Exec command on each sentinel" as update_quorum_sentinel_execute_command
-    [*] --> update_quorum_broadcast_sentinel_command
-    update_quorum_broadcast_sentinel_command --> update_quorum_sentinel_execute_command
-    update_quorum_sentinel_execute_command --> [*]
-}
-
-state is_failover_finish {
-    [*] --> check_failover_status_from_sentinel
-    check_failover_status_from_sentinel --> WaitingStatus: not over
-    check_failover_status_from_sentinel --> [*]: yes
-    WaitingStatus --> event_defer
-    event_defer --> [*]
-}
-
-state sentinel_failover {
-    state "Is master?" as check_is_master
-    [*] --> check_is_master
-    check_is_master --> [*]: false
-    check_is_master --> sentinel_exec_sentinel_failover_cmd: true
-    sentinel_exec_sentinel_failover_cmd --> [*]
-}
-
-
-state reset_sentinel {
-    state "broadcast sentinel command" as reset_sentinel_broadcast_sentinel_command
-    state "Exec command on each sentinel" as reset_sentinel_sentinel_execute_command
-    [*] --> reset_sentinel_broadcast_sentinel_command
-    reset_sentinel_broadcast_sentinel_command --> reset_sentinel_sentinel_execute_command
-    reset_sentinel_sentinel_execute_command --> [*]
-}
-
 
 [*] --> _peer_relation_departed
 
@@ -207,12 +176,122 @@ is_master --> update_application_master: false
 update_application_master --> update_quorum
 is_master --> update_quorum: true
 update_quorum --> is_failover_finish
-is_failover_finish --> [*]: event_defer
+
+%% is_failover_finish
+note right of is_failover_finish
+    Check if failover is still in progress.
+end note
+is_failover_finish --> WaitingStatus: error
+WaitingStatus --> event_defer
+event_defer --> [*]
 is_failover_finish --> sentinel_failover: true
+
+
+%% sentinel_failover
+note left of sentinel_failover
+    Try to failover the current master.
+    Should only be called from juju leader. 
+    Execute "SENTINEL FAILOVER {self.name}" on sentinel instance.
+end note
 sentinel_failover --> BlockStatus: RedisError
 BlockStatus --> [*]
 sentinel_failover --> reset_sentinel: true
+
+%% reset_sentinel
+note right of reset_sentinel
+    broadcast command
+    "SENTINEL RESET {self.name}"
+    and exec on all sentinel instances
+end note
 reset_sentinel --> ActiveStatus
 ActiveStatus --> [*]
 
 ```
+
+```python
+...
+
+from ops.model import BlockedStatus
+from redis.exceptions import RedisError
+from exceptions import RedisFailoverCheckError, RedisFailoverInProgressError
+
+...
+
+class RedisK8sCharm(CharmBase):
+    ...
+
+    def __init__(self, *args):
+
+        ...
+
+        self.framework.observe(self.on[PEER].relation_departed, self._peer_relation_departed)
+        ...
+
+    def _peer_relation_departed(self, event):
+        """Handle relation for leaving units."""
+        if not self.unit.is_leader():
+            return
+
+        if not self._check_master():
+            self._update_application_master()
+
+        # Quorum is updated beforehand, since removal of more units than current majority
+        # could lead to the cluster never reaching quorum.
+        logger.info("Updating quorum")
+        self._update_quorum()
+
+        try:
+            self._is_failover_finished()
+        except (RedisFailoverCheckError, RedisFailoverInProgressError):
+            msg = "Failover didn't finish, deferring"
+            logger.info(msg)
+            self.unit.status == WaitingStatus(msg)
+            event.defer()
+            return
+
+        try:
+            self._sentinel_failover(event.departing_unit.name)
+        except RedisError as e:
+            msg = f"Error on failover: {e}"
+            logger.error(msg)
+            self.unit.status == BlockedStatus(msg)
+            return
+
+        logger.info("Resetting sentinel")
+        self._reset_sentinel()
+
+        self.unit.status = ActiveStatus()
+
+    def _is_failover_finished(self) -> None:
+        """Check if failover is still in progress."""
+        logger.warning("Checking if failover is finished.")
+        info = self.sentinel.get_master_info()
+        if info is None:
+            logger.warning("Could not check failover status")
+            raise RedisFailoverCheckError
+
+        if "failover-state" in info:
+            logger.warning(
+                "Failover taking place. Current status: {}".format(info["failover-state"])
+            )
+            raise RedisFailoverInProgressError
+
+    def _sentinel_failover(self, departing_unit_name: str) -> None:
+        """Try to failover the current master.
+
+        This method should only be called from juju leader, to avoid more than one
+        sentinel sending failovers concurrently.
+        """
+        if self._k8s_hostname(departing_unit_name) != self.current_master:
+            # No failover needed
+            return
+
+        with self.sentinel.sentinel_client() as sentinel:
+            sentinel.execute_command(f"SENTINEL FAILOVER {self._name}")
+
+    def _reset_sentinel(self):
+        """Reset sentinel to process changes and remove unreachable servers/sentinels."""
+        command = f"SENTINEL RESET {self._name}"
+        self._broadcast_sentinel_command(command)
+```
+
