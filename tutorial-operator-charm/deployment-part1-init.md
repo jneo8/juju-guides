@@ -126,8 +126,19 @@ And this class should inherit `CharmBase`.  All charms written using the Charmed
 And the basic `__init__` function. We can define basic information of the charm: juju unit name, juju application name, and the kubernetes namespace name.
 
 
+
 ```python
 from ops.charm import CharmBase
+from literals import (
+    LEADER_HOST_KEY,
+    PEER,
+    PEER_PASSWORD_KEY,
+    REDIS_PORT,
+    SENTINEL_PASSWORD_KEY,
+    SOCKET_TIMEOUT,
+    WAITING_MESSAGE,
+)
+from exceptions import RedisFailoverCheckError, RedisFailoverInProgressError
 
 class RedisK8sCharm(CharmBase):
     """Charm the service.
@@ -142,4 +153,60 @@ class RedisK8sCharm(CharmBase):
         self._unit_name = self.unit.name
         self._name = self.model.app.name
         self._namespace = self.model.name
+
+if __name__ == "__main__":  # pragma: nocover
+    main(RedisK8sCharm)
+```
+
+**Both literals and exceptions will be used later in our deployment. Nothing special here.**
+
+`src/literals.py`
+
+```python
+"""Literals used by the Redis charm."""
+
+WAITING_MESSAGE = "Waiting for Redis..."
+PEER = "redis-peers"
+PEER_PASSWORD_KEY = "redis-password"
+SENTINEL_PASSWORD_KEY = "sentinel-password"
+LEADER_HOST_KEY = "leader-host"
+SOCKET_TIMEOUT = 1
+
+REDIS_PORT = 6379
+SENTINEL_PORT = 26379
+
+CONFIG_DIR = "/etc/redis-server"
+SENTINEL_CONFIG_PATH = f"{CONFIG_DIR}/sentinel.conf"
+```
+
+`./src/exceptions.py`
+
+```python
+"""Module with custom exceptions related to the Redis charm."""
+
+
+class RedisOperatorError(Exception):
+    """Base class for exceptions in this module."""
+
+    def __repr__(self):
+        """String representation of the Error class."""
+        return "<{}.{} {}>".format(type(self).__module__, type(self).__name__, self.args)
+
+    @property
+    def name(self):
+        """Return a string representation of the model plus class."""
+        return "<{}.{}>".format(type(self).__module__, type(self).__name__)
+
+    @property
+    def message(self):
+        """Return the message passed as an argument."""
+        return self.args[0]
+
+
+class RedisFailoverInProgressError(RedisOperatorError):
+    """Exception raised when failover is in progress."""
+
+
+class RedisFailoverCheckError(RedisOperatorError):
+    """Exception raised when failover status cannot be checked."""
 ```

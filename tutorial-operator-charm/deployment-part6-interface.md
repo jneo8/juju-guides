@@ -1,7 +1,7 @@
 # Deployment - Redis Interface
 
-Because we are going to implement the [redis interface](https://charmhub.io/redis-k8s/libraries/redis).
-We can use charmcraft to download the lib from charmhub. The lib will be download in the **lib** folder.
+We are going to implement provider of interface [redis interface](https://charmhub.io/redis-k8s/libraries/redis).
+Use charmcraft to download the lib from charmhub. The lib will be download in the **lib** folder.
 
 ```sh
 $ charmcraft fetch-lib charms.redis-k8s.v0.redis
@@ -30,11 +30,15 @@ $ tree
 ```
 
 Then register our charm class as redis provider.
+It will register a `_on_relation_changed` function to event `redis_event_change`.
+Operator framework use the observer pattern to handle to lifecycle.
+Which means if juju agent on the unit get the event `redis_relation_changed`, it will fire the function `_on_relation_changed`.
 
 
 ```python
+...
 from charms.redis_k8s.v0.redis import RedisProvides
-from literals import REDIS_PORT
+...
 
 class RedisK8sCharm(CharmBase):
     ...
@@ -54,9 +58,8 @@ REDIS_PORT = 6379
 
 
 Lets look at the interface details: `lib/charms/redis_k8s/v0/redis.py`.
-We need to provide the 
-
-We need to implement `current_master` function to make this interface available.
+The code here is the detail how our charm handle the event `redis_relation_changed`.
+It will be triggered once the juju relation be applyed between the applications.
 
 ```python
 ...
@@ -88,24 +91,4 @@ class RedisProvides(Object):
     def _get_master_ip(self) -> str:
         """Gets the ip of the current redis master."""
         return socket.gethostbyname(self._charm.current_master)
-```
-
-It will register a `_on_relation_changed` function to event `redis_event_change`.
-Operator framework use the observer pattern to handle to lifecycle.
-Which means if juju agent on the unit get the event `redis_relation_changed`, it will fire the function `_on_relation_changed`.
-
-
-
-`./src/charm.py`
-
-```python
-...
-
-class RedisK8sCharm(CharmBase):
-    ...
-
-    @property
-    def current_master(self) -> Optional[str]:
-        """Get the current master."""
-        return self._peers.data[self.app].get(LEADER_HOST_KEY)
 ```

@@ -146,39 +146,12 @@ stateDiagram-v2
 ```
 
 
-`src/literals.py`
-
-> Some literals will be used later.
-
-```python
-"""Literals used by the Redis charm."""
-
-WAITING_MESSAGE = "Waiting for Redis..."
-PEER = "redis-peers"
-PEER_PASSWORD_KEY = "redis-password"
-SENTINEL_PASSWORD_KEY = "sentinel-password"
-LEADER_HOST_KEY = "leader-host"
-SOCKET_TIMEOUT = 1
-
-REDIS_PORT = 6379
-SENTINEL_PORT = 26379
-
-CONFIG_DIR = "/etc/redis-server"
-SENTINEL_CONFIG_PATH = f"{CONFIG_DIR}/sentinel.conf"
-```
-
 `src/charm.py`
 
 ```python
 
 from ops.model import WaitingStatus, Relation
 from ops.pebble import Layer
-from literals import (
-    PEER,
-    PEER_PASSWORD_KEY,
-    REDIS_PORT,
-)
-
 
 ...
 
@@ -290,4 +263,19 @@ class RedisK8sCharm(CharmBase):
             An `ops.model.Relation` object representing the peer relation.
         """
         return self.model.get_relation(PEER)
+```
+
+Add `enable-tls` to juju config.
+
+`./config.yaml`
+
+```yaml
+options:
+  enable-tls:
+    default: false
+    type: boolean
+    description: >
+      Enabling TLS for the standard port of redis-server.
+      This option should be enabled after uploading the
+      corresponding TLS files as resources.
 ```

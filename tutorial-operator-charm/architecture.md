@@ -91,9 +91,9 @@ container-sentinel-3
 container-charm-3
 end
 
-container-charm-1 <--peer-relation--> container-charm-2
-container-charm-1 <--peer-relation--> container-charm-3
-container-charm-2 <--peer-relation--> container-charm-3
+pod-redis-1 <--peer-relation--> pod-redis-2
+pod-redis-1 <--peer-relation--> pod-redis-3
+pod-redis-2 <--peer-relation--> pod-redis-3
 ```
 
 ## References

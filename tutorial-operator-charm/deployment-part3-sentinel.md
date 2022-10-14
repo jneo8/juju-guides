@@ -68,14 +68,6 @@ from ops.model import ActiveStatus, WaitingStatus
 from ops.pebble import Layer
 from redis import ConnectionError, Redis, ResponseError, TimeoutError
 
-from literals import (
-    CONFIG_DIR,
-    REDIS_PORT,
-    SENTINEL_CONFIG_PATH,
-    SENTINEL_PORT,
-    SOCKET_TIMEOUT,
-)
-
 logger = logging.getLogger(__name__)
 
 
@@ -259,3 +251,24 @@ class Sentinel(Object):
 ```
 
 Some of the function, which provide the information from sentinel, will be used in the RedisK8sCharm later.
+
+
+`./templates/sentinel.conf.j2`
+
+```conf
+port {{ sentinel_port }}
+sentinel monitor {{ master_name }} {{ redis_master }} {{ redis_port }} {{ quorum }}
+sentinel down-after-milliseconds {{ master_name }} 5000
+sentinel failover-timeout {{ master_name }} 30000
+sentinel parallel-syncs {{ master_name }} 1
+
+{% if master_password != None %}
+sentinel auth-pass {{ master_name }} {{ master_password }}
+{% endif %}
+requirepass {{ sentinel_password }}
+
+sentinel announce-hostnames yes
+sentinel resolve-hostnames yes
+sentinel announce-ip {{ hostname }}
+replica-announce-ip {{ hostname }}
+```

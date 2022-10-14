@@ -20,3 +20,10 @@ This tutorial will use https://github.com/canonical/redis-k8s-operator as exampl
     - [peer relation](./deployment-part4-peer-relation.md)
     - [leader elected](./deployment-part5-leader-elected.md)
     - [redis interface](./deployment-part6-interface.md)
+    - [basic event handler](./deployment-part7-basic-handlers.md)
+
+
+## TODO
+
+TODO: Deployment action
+TODO: Deployment test

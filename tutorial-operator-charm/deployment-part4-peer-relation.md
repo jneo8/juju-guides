@@ -213,7 +213,6 @@ ActiveStatus --> [*]
 
 from ops.model import BlockedStatus
 from redis.exceptions import RedisError
-from exceptions import RedisFailoverCheckError, RedisFailoverInProgressError
 
 ...
 
