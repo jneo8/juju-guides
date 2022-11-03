@@ -2,7 +2,13 @@
 
 ![](./imgs/redis-sentinel.png)
 
-We are not going to explan **what is redis sentinel** here. Here we are going to show you how to implement sentinel as a container in juju.
+We are not going to explan **what is redis sentinel** here.
+
+> Redis Sentinel document: https://redis.io/docs/management/sentinel/
+
+Here we are going to show you how to implement sentinel as a container in juju.
+
+First we will create another Juju Operator Object class as the handler for the sentinel container that we register in the metadata.yaml before.
 
 `./src/charm.py`
 
@@ -23,7 +29,26 @@ class RedisK8sCharm(CharmBase):
         self.sentinel = Sentinel(self)
 ```
 
-Just like the way we implement *pubble_ready* event before. We need to register pebble to handle the sentinel service. The main different is in function `_sentinel_layer`, which create a pebble layer for the Redis sentinel.
+`./src/sentinel.py`
+
+```python
+class Sentinel(Object):
+    """Sentinel class.
+
+    Deploys sentinel in a separate container, handling the specific events
+    related to the Sentinel process.
+    """
+
+    def __init__(self, charm) -> None:
+        super().__init__(charm, "sentinel")
+
+        self.charm = charm
+```
+
+Then just like the way we implement *pebble_ready* event before, we need to register pebble to handle the sentinel service. The main different is in function `_sentinel_layer`, which create a pebble layer for the Redis sentinel.
+
+Some functions, which provide the information from sentinel to redis container, will be used in the RedisK8sCharm later.
+
 
 ```mermaid
 stateDiagram-v2
@@ -32,6 +57,11 @@ stateDiagram-v2
     state "Is current master and admin password available?" as if_peer_databag_available
 
     [*] --> register_charm
+
+    note right of register_charm
+    Register a operator class to sentinel container
+    end note
+
     register_charm --> _sentinel_pebble_ready
     _sentinel_pebble_ready --> _update_layer
     _update_layer --> if_can_conn_to_container
@@ -40,6 +70,9 @@ stateDiagram-v2
     if_can_conn_to_container --> if_peer_databag_available
     if_peer_databag_available --> WaitingStatus: false
     if_peer_databag_available --> render_sentinel_config_file: true
+    note left of render_sentinel_config_file
+    Render the Sentinel configuration file from template 
+    end note
 
     render_sentinel_config_file --> create_new_pebble_layer
     create_new_pebble_layer --> container_replan
@@ -249,8 +282,6 @@ class Sentinel(Object):
             client.close()
 
 ```
-
-Some of the function, which provide the information from sentinel, will be used in the RedisK8sCharm later.
 
 
 `./templates/sentinel.conf.j2`

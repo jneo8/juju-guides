@@ -1,6 +1,6 @@
-# Deployment - Pubble
+# Deployment - Pebble
 
-> Introduction of pubble is in [Architecture](./architecture.md)
+> Introduction of pebble is in [Architecture](./architecture.md)
 
 So here we need to create a pebble layer which be a supervisor of redis server.
 
@@ -136,6 +136,10 @@ stateDiagram-v2
     if_can_conn_redis_container --> if_peer_databag_available: connectable
     if_peer_databag_available --> WaitingStatus: false
     if_peer_databag_available --> check_pebble_layer: true
+    note right of check_pebble_layer
+        Check current running pebble layer
+        is the same as we want to create.
+    end note
 
     check_pebble_layer --> update_pebble_layer: not equal
     update_pebble_layer --> restart_redis
