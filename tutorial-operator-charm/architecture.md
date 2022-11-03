@@ -43,7 +43,18 @@ end
 
 ## Redis Sentinel
 
+High availability for non-clustered Redis. Redis Sentinel provides high availability for Redis when not using Redis Cluster. Redis Sentinel also provides other collateral tasks such as monitoring, notifications and acts as a configuration provider for clients.
+
+Redis Sentinel is a distributed system:
+
+Sentinel itself is designed to run in a configuration where there are multiple Sentinel processes cooperating together. 
+
+> https://redis.io/docs/management/sentinel/
+
+
 ![](./imgs/redis-sentinel.png)
+
+
 
 ```mermaid
 flowchart TD
@@ -224,7 +235,3 @@ root          31  0.0  0.0   4624  3752 pts/1    Ss   05:23   0:00 /bin/bash
 root          42  0.0  0.0   7060  1648 pts/1    R+   05:23   0:00 ps aux
 
 ```
-
-## References
-
-* https://redis.io/docs/manual/sentinel/
