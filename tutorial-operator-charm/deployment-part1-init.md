@@ -1,12 +1,18 @@
 # Deployment - Init
 
+## Abstract
+
+We are going to init a charm project with *charmcraft*, and also describe some details of charm project file structure.
+
 ## Create charm project and clean
+
+Use charmcraft to init a project called charm-redis
 
 ```sh
 $ charmcraft init -p charm-redis
 ```
 
-First is `./src/charm.py`
+To have clear tutorial, we need to clean up the project by remove something that is not using. Plase take a look at `./src/charm.py`
 
 First we should delete all `observer` function here. We will start deploy from empty class.
 
@@ -15,9 +21,13 @@ Also delete `containers` and `resources` in `metadata.yaml`
 
 ## Define charm(metadata.yaml)
 
+> https://juju.is/docs/sdk/metadata-yaml
+
 `metadata.yaml`
 
-First is the basic information
+The only file that must be present in a charm is metadata.yaml, in the root directory. It must be a valid YAML dictionary.
+
+We start to define the basic information with fields: *name*, *display*, *docs*, *description*, *tags*, and *summary*.
 
 ```yaml
 name: redis-k8s
@@ -48,49 +58,19 @@ summary: >
 
 Then the details of our charm's relation, resource, and storage.
 
-Here we define our charm which provide a redis interface. you can find interface defininatation on [charms.redis_k8s.v0.redis](https://charmhub.io/redis-k8s/libraries/redis).
+> https://juju.is/docs/olm/integration
+>
+> https://juju.is/docs/sdk/about-resources
+>
+> https://juju.is/docs/olm/storage
 
-**containers**
-
-Then we define an container name **redis**, which use oci-image resource as it's image as redis node.
-
-And a sentinel container as sentinel node.
-
-**resources**
+**Define resources in metadata.yaml**
 
 The resource **redis-image** define that we can deploy local image use command `--resource redis-image=${local_image_path}`, which is useful in local environment when the image is not published.
 
-Also define the certificate files for the redis server.
-
-**storage**
-
-Require a storage mount at `/var/lib/redis`
-
-[details here](https://juju.is/docs/sdk/metadata-reference)
-
-**peers**
-
-The redis unit relate to each other with the interface `redis-peers`
-
-[peers relation](https://juju.is/docs/sdk/relations#heading--peer-relations)
+Also define the certificate files for the redis server we will use later.
 
 ```yaml
-
-...
-
-provides:
-  redis:
-    interface: redis
-
-containers:
-  redis:
-    resource: redis-image
-    mounts:
-      - storage: database
-        location: /var/lib/redis
-  sentinel:
-    resource: redis-image
-
 resources:
   redis-image:
     type: oci-image
@@ -105,22 +85,68 @@ resources:
   ca-cert-file:
     type: file
     filename: ca.crt
+```
 
+**Define storage in metadata.yaml**
+
+Require a storage mount at `/var/lib/redis`
+
+[details here](https://juju.is/docs/sdk/metadata-reference)
+
+```yaml
 storage:
   database:
     type: filesystem
     location: /var/lib/redis
+```
 
+
+**Define containers in metadata.yaml**
+
+Then we define an container name **redis**, which use oci-image resource as it's image as redis node.
+
+And a sentinel container as sentinel node.
+
+```yaml
+containers:
+  redis:
+    resource: redis-image
+    mounts:
+      - storage: database
+        location: /var/lib/redis
+  sentinel:
+    resource: redis-image
+```
+
+**Define peer integration in metadata.yaml**
+
+The redis unit relate to each other with the interface `redis-peers`
+
+[peers integration](https://juju.is/docs/sdk/integration#heading--peer-integrations)
+
+```yaml
 peers:
   redis-peers:
     interface: redis-peers
+```
+
+**Define interface in metadata.yaml**
+
+Here we define our charm which provide a redis interface. you can find interface defininatation on [charms.redis_k8s.v0.redis](https://charmhub.io/redis-k8s/libraries/redis).
+
+```yaml
+provides:
+  redis:
+    interface: redis
 ```
 
 ## Charm(python class)
 
 We are going to implement the charm's code.
 
-First please create a empth class with the same name as the one in the `src/charm.py`(delete the old one also)
+The framework we used to create kubernetes charm is [Operator framework](https://github.com/canonical/operator). This should be automatic include inside the `requeirement.txt` when initialize the charm project.
+
+First please create a empty class with the same name as the one in the `src/charm.py`(delete the old one also)
 And this class should inherit `CharmBase`.  All charms written using the Charmed Operator Framework must use this abstraction.
 
 And the basic `__init__` function. We can define basic information of the charm: juju unit name, juju application name, and the kubernetes namespace name.
@@ -158,7 +184,20 @@ if __name__ == "__main__":  # pragma: nocover
     main(RedisK8sCharm)
 ```
 
-**Both literals and exceptions will be used later in our deployment. Nothing special here.**
+The import part here is the `super().__init__(*args)` line, where the `CharmBase` define events in the source code. Those events control the basic lifecycle of the charm which we can modify it customized.
+
+> A charm's life: https://juju.is/docs/sdk/a-charms-life
+
+> Source code details:
+>
+> https://github.com/canonical/operator/blob/84425467fbaca1a551becb1c136971b5e5de7e16/ops/charm.py#L829
+> 
+> https://github.com/canonical/operator/blob/84425467fbaca1a551becb1c136971b5e5de7e16/ops/charm.py#L835
+
+
+### Define Literals and exceptions
+
+Both literals and exceptions will be used later in our deployment. Nothing special here.
 
 `src/literals.py`
 

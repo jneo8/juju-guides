@@ -16,7 +16,9 @@ As seen in the figure below, when a deployment is on K8S, there is no concept of
 
 
 
-## Pebble
+## API Driven process supervisor: Pebble
+
+> https://github.com/canonical/pebble
 
 Pebble is the recommended way for create a kubernetes charm.
 Pebble is a lightweight, API-driven process supervisor designed to give workload containers something akin to an init system that will allow the charm container to interact with it.
@@ -55,6 +57,9 @@ Sentinel itself is designed to run in a configuration where there are multiple S
 ![](./imgs/redis-sentinel.png)
 
 
+In our case we will deploy three containers: charm, redis, and sentinel inside one pod.
+
+One juju unit is equal to one kubernetes pod in the cluster. The redis server and redis-sentinel will be inside the same juju unit, but different kubernetes containers.
 
 ```mermaid
 flowchart TD
@@ -68,6 +73,13 @@ container-charm --> container-redis
 container-charm --> container-sentinel
 end
 ```
+
+In the figure below is the overview of redis deployment. There will be at least three pods which are related together throught the peer intergration.
+
+> https://juju.is/docs/sdk/integration#heading--peer-integrations
+
+The charm will be provider of the [interface: redis](https://charmhub.io/redis-k8s/libraries/redis). Other charm to which require to connect it can implemente the redis RedisRequires interface.
+
 
 ```mermaid
 flowchart TD
