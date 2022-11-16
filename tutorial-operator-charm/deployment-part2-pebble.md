@@ -1,11 +1,52 @@
 # Deployment - Pebble
 
+> https://github.com/canonical/pebble
+>
 > Introduction of pebble is in [Architecture](./architecture.md)
+>
+> https://juju.is/docs/sdk/interact-with-pebble
 
-So here we need to create a pebble layer which be a supervisor of redis server.
+We are going to create a pebble layer which be a supervisor of redis server.
 
+## What is Pebble?
 
-## observer register event
+Pebble is a organized as a single binary that works as a daemon and also a client to itself.
+When the daemon runs it loads its own configuration from the $PEBBLE directory, as defined in the environment, and also writes down in that same directory its state and Unix sockets for communication.
+
+```mermaid
+flowchart LR
+
+subgraph workload-container-redis-server
+redis-server-pebble-unix-socket("pebble-unix-socket")
+redis-server-pebble-daemon("pebble-daemon")
+redis-server-pebble-unix-socket <--> redis-server-pebble-daemon
+redis-server-pebble-daemon --> redis-server
+redis-server-pebble-layer-configuration <--> redis-server-pebble-daemon
+end
+
+subgraph workload-container-redis-sentinel
+redis-sentinel-pebble-unix-socket("pebble-unix-socket")
+redis-sentinel-pebble-daemon("pebble-daemon")
+redis-sentinel-pebble-unix-socket <--> redis-sentinel-pebble-daemon
+redis-sentinel-pebble-daemon --> redis-sentinel
+redis-sentinel-pebble-layer-configuration <--> redis-sentinel-pebble-daemon
+end
+
+subgraph charm-container
+ops-lib("ops.pebble.Client")
+
+charm --use module--> ops-lib
+ops-lib --HTTP over a unix socket--> redis-server-pebble-unix-socket
+ops-lib --HTTP over a unix socket--> redis-sentinel-pebble-unix-socket
+end
+
+```
+
+## observer register pebble ready event
+
+For kubernetes charm, each container's event to handle pebble is `<container-name>_pebble_ready`. Here we will create a hook `_redis_pebble_ready` to handle the pebble ready event `redis_pebble_ready` by using syntax `self.framework.observer(<event>, <hook>)`, which means register this hook as the observer to this event.
+
+> https://juju.is/docs/sdk/container-name-pebble-ready-event
 
 ```python
 class RedisK8sCharm(CharmBase):
@@ -24,7 +65,7 @@ class RedisK8sCharm(CharmBase):
         pass
 ```
 
-We register a event `redis_pebble_ready` which handle by function `_redis_pebble_ready`
+There are two major functions in this hook: `_store_certificates` and `_update_layer`.
 
 
 ```python
@@ -44,10 +85,21 @@ class RedisK8sCharm(CharmBase):
             return
 ```
 
+> `event.defer()`
+> 
+> [Deferring Events: Details and Dilemmas](https://juju.is/docs/sdk/deferring-events-details-and-dilemmas)
+
 
 ## Fetch resource from model resources, and push to container
 
-Implement `_store_certificates` function
+The `_store_certificates` is going to fetch the certificate files, which we define on the metadata.yaml and uploaded when we deploy, from the juju resources and push it to workload container's folder. The folder path should be the storage which we define in the metadata.yaml.
+
+> Exercise: Please try to find the pvc, pv, and mount inside redis kubernetes pod.
+
+
+> [juju SDK - resources](https://juju.is/docs/sdk/resources)
+>
+> [juju SDK - storage](https://juju.is/docs/sdk/storage)
 
 ```python
 import logging
@@ -115,11 +167,10 @@ class RedisK8sCharm(CharmBase):
             return None
 ```
 
-> [juju SDK - storage](https://juju.is/docs/sdk/storage)
 
 ## Update pebble layer
 
-Create/update pebble redis layer, it will need peer's admin password(This part will be implement later).
+Create/update pebble redis layer.
 
 The state diagram, you can see the basic flow how operator bootstrap redis service by using pebble:
 
@@ -149,6 +200,8 @@ stateDiagram-v2
 
 ```
 
+The password is store inside the [peer relation databag](https://juju.is/docs/sdk/relations#heading--peer-relation-example), we will skip the store password part here(implement later). First just pretend there is already have a password inside.
+
 
 `src/charm.py`
 
@@ -156,6 +209,7 @@ stateDiagram-v2
 
 from ops.model import WaitingStatus, Relation
 from ops.pebble import Layer
+from literals import PEER
 
 ...
 

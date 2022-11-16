@@ -1,9 +1,16 @@
 # Deployment - leader elected
 
-Because the we are going to deploy redis as redis sentinel. It will need to choose which node is the master node of redis sentinel.
-This will happen in the `_leader_elected` hook.
+In Juju, every application is guaranteed to have exactly one leader at any time. This is true independent of the charm's author's actions; whether or not you implement the hooks or use the tools, the juju controller will elect a leader when a charm is deployed. Units that hold leader status should not assume they will retain it, a new leader can be elected at any time.
+
+> [juju Leader](https://juju.is/docs/sdk/leadership)
+
+The leader-elected event is emitted for a unit that is elected as leader. Together with leader-settings-changed, it is one of two “leadership events”. A unit receiving this event can be guaranteed that it will have leadership for approximately 30 seconds (from the moment the event is received). 
+
+After that time, juju might have elected a different leader. The same holds if the unit checks leadership by Unit.is_leader(): if the result is True, then the unit can be ensured that it has leadership for the next 30s.
 
 > [leader-elected event](https://juju.is/docs/sdk/leader-elected-event)
+
+In this leader_elected event, we will make sure the redis password and sentinel password are been stored in the peer relation databag. Later store the master host key to the databag also.gtkjkjj
 
 ```mermaid
 stateDiagram-v2

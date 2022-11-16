@@ -4,10 +4,30 @@ Peer relation is the recommended way to implement the relation for those distrib
 
 > More details: [Peer relation](https://juju.is/docs/sdk/relations#heading--peer-relations)
 
-We need to handle `relation_departed` and `relation_changed` event for our peers relation.
+Here We need to handle `relation_departed` and `relation_changed` events for our peers relation, which is for our pods to switch the information.
 
 
 ## peer_relation_changed
+
+The first event `peer_relation_changed` will emitted when another unit has touched the relation data. Charm authors should expect this event to fire many times during an application’s life cycle. Units in an application are able to update relation data as needed, and a relation-changed event will fire every time the data in a relation changes.
+
+> https://juju.is/docs/sdk/relation-name-relation-changed-event
+
+For some reason, the operation job can only be triggered by a single node, so here is the problem: *How to choose the node?*
+
+### juju leader
+
+In Juju, every application is guaranteed to have exactly one leader at any time. This is true independent of the charm's author's actions; whether or not you implement the hooks or use the tools, the juju controller will elect a leader when a charm is deployed. Units that hold leader status should not assume they will retain it, a new leader can be elected at any time.
+
+> [juju Leader](https://juju.is/docs/sdk/leadership)
+
+In our operator charm class, we can check if this unit is leader by `self.unit.is_leader()`.
+
+We will discuss `leader_elected` in next chapter.
+
+### handler workflow
+
+The event handler first sync the master information if the unit is redis master but not juju leader. Because this will store the master ip in peer relation, it will trigger other units's `peer_relation_changed` event. Later the leader will trigger `_update_quorum` after make sure the sentinel is in majority. The `_update_quorum` will broadcast the command `SENTINEL SET {self._name} quorum {self.sentinel.expected_quorum}` to all the sentinel nodes in the peer relation.
 
 ```mermaid
 stateDiagram-v2
@@ -17,9 +37,15 @@ stateDiagram-v2
 peer_relatoin_changed --> is_current_master_and_leader
 is_current_master_and_leader --> update_application_master: true
 
-note left of update_application_master : This will get master information from sentinel and store master ip in peer relation databag
+note left of update_application_master
+    Because the redis master is not juju leader.
+    This will get master information from sentinel and store master ip in peer relation databag
+end note
 
 is_current_master_and_leader --> is_leader_and_event_unit: false
+note left of is_current_master_and_leader
+    We need to check is the unit the current juju leader and the redis master.
+end note
 update_application_master --> is_leader_and_event_unit
 
 is_leader_and_event_unit --> [*]: false
@@ -161,7 +187,7 @@ class RedisK8sCharm(CharmBase):
 
 ## peer_relation_departed
 
-Handle relation for leaving units.
+Handle event when a unit is leaving. This require the leader unit to execute the `SENTINEL FAILOVER` command in it's sentinel server and then boardcast the "SENTINEL RESET" to all the sentinel nodes.
 
 
 ```mermaid

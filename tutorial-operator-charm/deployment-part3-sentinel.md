@@ -8,7 +8,67 @@ We are not going to explan **what is redis sentinel** here.
 
 Here we are going to show you how to implement sentinel as a container in juju.
 
-First we will create another Juju Operator Object class as the handler for the sentinel container that we register in the metadata.yaml before.
+First we will create another Juju Operator Object class as the handler for the sentinel container that we register in the metadata.yaml before. The Sentinel class is inherit from `ops.framework.Object`, we can take a look at it's source code here:
+
+
+```python
+class Object(metaclass=_Metaclass):
+    """Initialize an Object as a new leaf in :class:`Framework`, identified by `key`.
+
+    Args:
+        parent: parent node in the tree.
+        key: unique identifier for this object.
+
+    Every object belongs to exactly one framework.
+
+    Every object has a parent, which might be a framework.
+
+    We track a "path to object," which is the path to the parent, plus the object's unique
+    identifier. Event handlers use this identity to track the destination of their events, and the
+    Framework uses this id to track persisted state between event executions.
+
+    The Framework should raise an error if it ever detects that two objects with the same id have
+    been created.
+
+    """
+    handle_kind = HandleKind()  # type: str
+
+    if TYPE_CHECKING:
+        # to help the type checker and IDEs:
+        # all these are guaranteed to be set at runtime.
+        @property
+        def on(self) -> 'ObjectEvents': ...  # noqa
+
+    def __init__(self, parent: Union['Framework', 'Object'], key: Optional[str]):
+        self.framework = None  # type: Framework # noqa
+        self.handle = None  # type: Handle # noqa
+
+        kind = self.handle_kind
+        if isinstance(parent, Framework):
+            self.framework = parent
+            # Avoid Framework instances having a circular reference to themselves.
+            if self.framework is self:
+                self.framework = weakref.proxy(self.framework)
+            self.handle = Handle(None, kind, key)
+        else:
+            self.framework = parent.framework
+            self.handle = Handle(parent, kind, key)
+        self.framework._track(self)  # noqa
+
+        # TODO Detect conflicting handles here.
+
+    @property
+    def model(self) -> 'Model':
+        """Shortcut for more simple access the model."""
+        return self.framework.model
+```
+
+The Object is been use to *Initialize an Object as a new leaf in :class:`Framework`, identified by `key`*. In our case the framework is `RedisK8sCharm` and the leaf is `Sentinel` which identified by key `sentinel`.
+
+> [Operator Object github source](https://github.com/canonical/operator/blob/da4a0eccdadf3539b04441154a5f1bcc56aa5480/ops/framework.py#L404)
+
+
+Here is the implementation:
 
 `./src/charm.py`
 
@@ -32,6 +92,8 @@ class RedisK8sCharm(CharmBase):
 `./src/sentinel.py`
 
 ```python
+from ops.framework import Object
+
 class Sentinel(Object):
     """Sentinel class.
 
@@ -45,9 +107,11 @@ class Sentinel(Object):
         self.charm = charm
 ```
 
+## Sentinel pebble ready event
+
 Then just like the way we implement *pebble_ready* event before, we need to register pebble to handle the sentinel service. The main different is in function `_sentinel_layer`, which create a pebble layer for the Redis sentinel.
 
-Some functions, which provide the information from sentinel to redis container, will be used in the RedisK8sCharm later.
+> Also important that the name of the event we need to handle is `sentinel_pebble_ready`.
 
 
 ```mermaid
@@ -221,23 +285,6 @@ class Sentinel(Object):
             group="redis",
         )
 
-    def get_master_info(self, host="localhost") -> Optional[dict]:
-        """Connect to sentinel and return the current master."""
-        with self.sentinel_client(host) as sentinel:
-            try:
-                # get sentinel info about the master
-                master_info = sentinel.execute_command(f"SENTINEL MASTER {self.charm._name}")
-
-                # NOTE: master info from redis comes like a list:
-                # ['key1', 'value1', 'key2', 'value2', ...]
-                # this creates a dictionary in a more readable form.
-                return dict(zip(master_info[::2], master_info[1::2]))
-
-            except (ConnectionError, TimeoutError) as e:
-                logger.error("Error when connecting to sentinel: {}".format(e))
-
-        return None
-
     @property
     def expected_quorum(self) -> int:
         """Get the current expected quorum number."""
@@ -302,4 +349,30 @@ sentinel announce-hostnames yes
 sentinel resolve-hostnames yes
 sentinel announce-ip {{ hostname }}
 replica-announce-ip {{ hostname }}
+```
+
+### Sentinel helper function
+
+Then implement a helper function that will be used later when we need to get master information from `RedisK8sCharm`.
+
+```python
+class Sentinel(Object):
+    ...
+
+    def get_master_info(self, host="localhost") -> Optional[dict]:
+        """Connect to sentinel and return the current master."""
+        with self.sentinel_client(host) as sentinel:
+            try:
+                # get sentinel info about the master
+                master_info = sentinel.execute_command(f"SENTINEL MASTER {self.charm._name}")
+
+                # NOTE: master info from redis comes like a list:
+                # ['key1', 'value1', 'key2', 'value2', ...]
+                # this creates a dictionary in a more readable form.
+                return dict(zip(master_info[::2], master_info[1::2]))
+
+            except (ConnectionError, TimeoutError) as e:
+                logger.error("Error when connecting to sentinel: {}".format(e))
+
+        return None
 ```

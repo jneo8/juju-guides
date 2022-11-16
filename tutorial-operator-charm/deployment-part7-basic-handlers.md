@@ -4,6 +4,15 @@ We will implement 3 basic events `config_changed`, `upgrade_charm`, and `update_
 
 ## Config changed
 
+> https://juju.is/docs/sdk/config-changed-event
+
+The config-changed event is emitted in response to various events throughout a charm’s lifecycle:
+
+- Immediately after the install event and before the start event in the Startup Phase.
+- In response to a configuration change using the GUI or CLI
+- On networking changes (if the machine reboots and comes up with a different IP).
+
+
 ```mermaid
 stateDiagram-v2
 
@@ -91,6 +100,11 @@ class RedisK8sCharm(CharmBase):
 ```
 
 ## Upgrade charm
+
+> https://juju.is/docs/sdk/upgrade-charm-event
+
+The upgrade-charm event is emitted for a unit that is undergoing an upgrade.
+
 
 ```python
 class RedisK8sCharm(CharmBase):

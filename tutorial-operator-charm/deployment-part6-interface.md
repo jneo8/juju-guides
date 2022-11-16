@@ -1,7 +1,9 @@
 # Deployment - Redis Interface
 
-We are going to implement provider of interface [redis interface](https://charmhub.io/redis-k8s/libraries/redis).
+To provide the interface for another charm to connect to redis. We are going to implement provider of [redis interface](https://charmhub.io/redis-k8s/libraries/redis).
 Use charmcraft to download the lib from charmhub. The lib will be download in the **lib** folder.
+
+> [Juju Integration](https://juju.is/docs/sdk/integration)
 
 ```sh
 $ charmcraft fetch-lib charms.redis-k8s.v0.redis
@@ -31,8 +33,7 @@ $ tree
 
 Then register our charm class as redis provider.
 It will register a `_on_relation_changed` function to event `redis_event_change`.
-Operator framework use the observer pattern to handle to lifecycle.
-Which means if juju agent on the unit get the event `redis_relation_changed`, it will fire the function `_on_relation_changed`.
+The `_on_relation_changed` event is triggered whenever there is a change to the integration data.
 
 
 ```python
@@ -56,9 +57,8 @@ class RedisK8sCharm(CharmBase):
 REDIS_PORT = 6379
 ```
 
-
 Lets look at the interface details: `lib/charms/redis_k8s/v0/redis.py`.
-The code here is the detail how our charm handle the event `redis_relation_changed`.
+One thing interesting is that it's also an `operator.framework.Objects` class just like the sentinel we created in previous chapter, but it only handle the `redis_relation_changed` event.
 It will be triggered once the juju relation be applyed between the applications.
 
 ```python
@@ -91,4 +91,29 @@ class RedisProvides(Object):
     def _get_master_ip(self) -> str:
         """Gets the ip of the current redis master."""
         return socket.gethostbyname(self._charm.current_master)
+```
+
+And create a event handler for the event `redis_relation_created`. Triggered when a new integration is created. This can occur before applications have started.
+
+```python
+class RedisK8sCharm(CharmBase):
+    ...
+
+    def __init__(self, *args):
+        ...
+        self.framework.observe(self.on.redis_relation_created, self._on_redis_relation_created)
+
+
+    def _on_redis_relation_created(self, event):
+        """Handle the relation created event."""
+        if not self.unit.is_leader():
+            return
+
+        self._peers.data[self.app]["enable-password"] = "false"
+        self._update_layer()
+
+        # update_layer will set a Waiting status if Pebble is not ready
+        if not isinstance(self.unit.status, ActiveStatus):
+            event.defer()
+            return
 ```
